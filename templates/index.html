@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SmartChef Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="dashboard">
+    <header class="dashboard-header">
+      <h1>SmartChef Recipe Generator</h1>
+    </header>
+
+    <main class="dashboard-main">
+      <!-- Input Section -->
+      <section class="input-section">
+        <h2>Enter Ingredients</h2>
+        <textarea id="ingredients" placeholder="e.g., tomatoes, onions, garlic"></textarea>
+
+        <div class="diet-selection">
+          <label>Select Diet Preference:</label>
+          <div class="diet-buttons">
+            <button id="btn-veg" type="button" onclick="selectDiet('Vegetarian')">
+              Vegetarian
+            </button>
+            <button id="btn-nonveg" type="button" onclick="selectDiet('Non-Vegetarian')">
+              Non-Vegetarian
+            </button>
+          </div>
+        </div>
+
+        <button id="generate-btn">Generate Recipe</button>
+      </section>
+
+      <!-- Output Section -->
+      <section class="output-section">
+        <h2>Generated Recipe</h2>
+        <div id="recipe-output" class="recipe-output"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let selectedDiet = '';
+
+    function selectDiet(diet) {
+      selectedDiet = diet;
+      document.getElementById('btn-veg').classList.toggle('selected', diet === 'Vegetarian');
+      document.getElementById('btn-nonveg').classList.toggle('selected', diet === 'Non-Vegetarian');
+    }
+
+    document.getElementById('generate-btn').addEventListener('click', () => {
+      const ingredients = document.getElementById('ingredients').value.trim();
+      if (!ingredients) {
+        alert('Please enter some ingredients.');
+        return;
+      }
+      if (!selectedDiet) {
+        alert('Please select a diet preference.');
+        return;
+      }
+
+      document.getElementById('recipe-output').innerHTML = '<p class="loading">Generating recipe…</p>';
+
+      fetch('/generate_recipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ingredients, diet: selectedDiet })
+      })
+      .then(response => response.json())
+      .then(data => {
+        const outputDiv = document.getElementById('recipe-output');
+        if (data.recipe) {
+          outputDiv.innerHTML = formatRecipe(data.recipe);
+        } else {
+          outputDiv.innerHTML = `<p class="error">Error: ${data.error || 'Unknown error.'}</p>`;
+        }
+      })
+      .catch(err => {
+        console.error('Fetch error:', err);
+        document.getElementById('recipe-output').innerHTML = '<p class="error">Error generating recipe.</p>';
+      });
+    });
+
+    function formatRecipe(text) {
+      const clean = text.replace(/[*`]+/g, '').replace(/\r\n/g, '\n');
+      const lines = clean.split('\n');
+
+      let html = '';
+      let inList = false;
+
+      function closeList() {
+        if (inList) {
+          html += '</ul>';
+          inList = false;
+        }
+      }
+
+      lines.forEach(rawLine => {
+        const line = rawLine.trim();
+        if (!line) {
+          closeList();
+          return;
+        }
+        if (line.endsWith(':')) {
+          closeList();
+          const heading = line.slice(0, -1);
+          html += `<h3>${heading}</h3>`;
+        }
+        else if (line.startsWith('- ')) {
+          const item = line.slice(2).trim();
+          if (!inList) {
+            inList = true;
+            html += '<ul>';
+          }
+          html += `<li>${item}</li>`;
+        }
+        else {
+          closeList();
+          html += `<p>${line}</p>`;
+        }
+      });
+
+      closeList();
+      return html;
+    }
+  </script>
+</body>
+</html>
